@@ -1,4 +1,4 @@
-require('dotenv').config(); // Cargamos las variables de entorno
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -7,7 +7,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Conexión a MongoDB usando variables de entorno
 const mongoURI = process.env.MONGO_URI; 
 
 mongoose.connect(mongoURI)
@@ -28,9 +27,15 @@ const Cliente = mongoose.model('Cliente', new mongoose.Schema({
     fecha_nacimiento: Date
 }), 'clientes');
 
-// --- RUTAS ---
+// --- NUEVO: Schema de Favoritos ---
+const Favorito = mongoose.model('Favorito', new mongoose.Schema({
+    usuario: { type: String, required: true },
+    libroId: { type: String, required: true },
+    titulo: String
+}), 'favoritos');
 
-// POST login
+// --- RUTAS DE USUARIOS Y CLIENTES ---
+
 app.post('/api/login', async (req, res) => {
     const { usuario, contrasena } = req.body;
     try {
@@ -41,41 +46,53 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// NUEVA RUTA: POST registrar usuario
 app.post('/api/usuarios/registrar', async (req, res) => {
     const { usuario, contrasena } = req.body;
-    
     try {
-        // Verificar si el usuario ya existe para no duplicar
         const usuarioExistente = await Usuario.findOne({ usuario });
         if (usuarioExistente) {
-            return res.status(400).json({ 
-                exito: false, 
-                mensaje: 'El nombre de usuario ya está ocupado' 
-            });
+            return res.status(400).json({ exito: false, mensaje: 'El nombre de usuario ya está ocupado' });
         }
-
-        // Crear y guardar nuevo usuario
         const nuevoUsuario = new Usuario({ usuario, contrasena });
         await nuevoUsuario.save();
-        
-        res.status(201).json({ 
-            exito: true, 
-            mensaje: 'Usuario registrado exitosamente' 
-        });
+        res.status(201).json({ exito: true, mensaje: 'Usuario registrado exitosamente' });
     } catch (e) {
-        res.status(500).json({ 
-            exito: false, 
-            error: e.message 
-        });
+        res.status(500).json({ exito: false, error: e.message });
     }
 });
 
-// GET todos los clientes
 app.get('/api/clientes', async (req, res) => {
     try {
         const clientes = await Cliente.find();
         res.json(clientes);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// --- NUEVAS RUTAS DE FAVORITOS ---
+
+// Agregar un libro a favoritos
+app.post('/api/favoritos/agregar', async (req, res) => {
+    const { usuario, libroId, titulo } = req.body;
+    try {
+        const existe = await Favorito.findOne({ usuario, libroId });
+        if (existe) {
+            return res.json({ exito: true, mensaje: 'El libro ya estaba en favoritos' });
+        }
+        const nuevoFavorito = new Favorito({ usuario, libroId, titulo });
+        await nuevoFavorito.save();
+        res.json({ exito: true, mensaje: 'Guardado en favoritos' });
+    } catch (e) {
+        res.status(500).json({ exito: false, error: e.message });
+    }
+});
+
+// Obtener los favoritos de un usuario
+app.get('/api/favoritos/:usuario', async (req, res) => {
+    try {
+        const misFavoritos = await Favorito.find({ usuario: req.params.usuario });
+        res.json(misFavoritos);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
